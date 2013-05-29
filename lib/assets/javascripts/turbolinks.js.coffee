@@ -33,6 +33,9 @@ fetchReplacement = (url) ->
 
     if doc = validateResponse()
       changePage extractTitleAndBody(doc)...
+
+      replaceHeadNodes extractReplaceableNodes(doc.head), true
+
       reflectRedirectedUrl()
       if document.location.hash
         document.location.href = document.location.href
@@ -46,12 +49,27 @@ fetchReplacement = (url) ->
 
   xhr.send()
 
+extractReplacableNodes = (head) ->
+  node for node in head.childNodes when node.getAttribute?('data-turbolinks-replace')
+
+replaceHeadNodes = (nodes, execute) ->
+  document.head.removeChild node for node in extractReplaceableNodes(document.head)
+  for node in nodes
+    if execute
+      copy = document.createElement node.nodeName
+      copy.setAttribute attr.name, attr.value for attr in node.attributes
+      copy.appendChild document.createTextNode node.innerHTML
+      document.head.appendChild copy
+    else
+      document.head.appendChild node
+
 fetchHistory = (state) ->
   cacheCurrentPage()
 
   if page = pageCache[state.position]
     xhr?.abort()
     changePage page.title, page.body
+    replaceHeadNodes(page.replaceableHeadNodes)
     recallScrollPosition page
     triggerEvent 'page:restore'
   else
@@ -63,6 +81,7 @@ cacheCurrentPage = ->
 
   pageCache[currentState.position] =
     url:       document.location.href,
+    replaceableHeadNodes: extractReplaceableNodes(document.head)
     body:      document.body,
     title:     document.title,
     positionY: window.pageYOffset,
